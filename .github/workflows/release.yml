@@ -1,0 +1,94 @@
+name: CI and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.3
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake clang libclang-dev libssl-dev libadwaita-1-dev libgtk-4-dev pkg-config zip
+
+      - name: Check formatting
+        run: cargo fmt -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked
+
+      - name: Verify release version tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Package Linux release
+        run: |
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          bash scripts/build-psiphon-release.sh "$assets"
+          bash scripts/package-release.sh "$assets"
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+            source_name="AetherGTK-v$version-source.tar.gz"
+            source_root="$RUNNER_TEMP/source/AetherGTK-$version"
+            mkdir -p "$source_root/vendor/Aether"
+            git archive HEAD | tar -x -C "$source_root"
+            git -C vendor/Aether archive HEAD | tar -x -C "$source_root/vendor/Aether"
+            tar -czf "$assets/$source_name" -C "$RUNNER_TEMP/source" "AetherGTK-$version"
+            (cd "$assets" && sha256sum "$source_name" >"$source_name.sha256")
+          fi
+
+      - name: Upload release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: ${{ runner.temp }}/release-assets/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: release-assets
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Aether GTK ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*

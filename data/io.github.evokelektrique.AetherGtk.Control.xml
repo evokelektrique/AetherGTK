@@ -1,0 +1,13 @@
+<node>
+  <interface name="io.github.evokelektrique.AetherGtk.Control">
+    <method name="GetState">
+      <arg name="state" type="s" direction="out" />
+      <arg name="profile" type="s" direction="out" />
+      <arg name="proxy_address" type="s" direction="out" />
+    </method>
+    <method name="Connect" />
+    <method name="Disconnect" />
+    <method name="ShowWindow" />
+    <method name="Quit" />
+  </interface>
+</node>

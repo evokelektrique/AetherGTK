@@ -1,0 +1,19 @@
+[package]
+name = "aether-gtk"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98"
+authors = ["evokelektrique"]
+license = "AGPL-3.0-only"
+description = "A GTK desktop client for Aether"
+repository = "https://github.com/evokelektrique/AetherGTK"
+readme = "README.md"
+
+[dependencies]
+adw = { package = "libadwaita", version = "0.8" }
+aether = { path = "vendor/Aether/aether" }
+gio = "0.21"
+glib = "0.21"
+gtk = { package = "gtk4", version = "0.10" }
+log = "0.4"
+serde_json = "1"

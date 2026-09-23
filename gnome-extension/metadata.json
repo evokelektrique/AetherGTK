@@ -1,0 +1,9 @@
+{
+  "uuid": "aether-gtk@evokelektrique",
+  "name": "Aether Quick Settings",
+  "description": "Connect to Aether and monitor its local proxy from GNOME Quick Settings.",
+  "url": "https://github.com/evokelektrique",
+  "original-authors": ["evokelektrique"],
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"],
+  "version": 2
+}
