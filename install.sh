@@ -46,6 +46,43 @@ fail() {
     exit 1
 }
 
+uninstall() {
+    local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local app_id="io.github.evokelektrique.AetherGtk"
+    local extension_id="aether-gtk@evokelektrique"
+
+    if command -v gdbus >/dev/null 2>&1; then
+        gdbus call --session \
+            --dest "$app_id.Control" \
+            --object-path "/io/github/evokelektrique/AetherGtk/Control" \
+            --method "$app_id.Control.Quit" >/dev/null 2>&1 || true
+    fi
+    if command -v gnome-extensions >/dev/null 2>&1; then
+        gnome-extensions disable "$extension_id" >/dev/null 2>&1 || true
+        gnome-extensions uninstall "$extension_id" >/dev/null 2>&1 || true
+    fi
+
+    rm -f -- \
+        "$HOME/.local/bin/aether-gtk" \
+        "$data_home/applications/$app_id.desktop" \
+        "$data_home/dbus-1/services/$app_id.service" \
+        "$data_home/dbus-1/interfaces/$app_id.Control.xml" \
+        "$config_home/autostart/$app_id.desktop"
+    rm -rf -- \
+        "$data_home/aether-gtk" \
+        "$data_home/gnome-shell/extensions/$extension_id" \
+        "$config_home/aether-gtk"
+    for size in 64 128 256 512; do
+        rm -f -- "$data_home/icons/hicolor/${size}x${size}/apps/$app_id.png"
+    done
+    if command -v gtk-update-icon-cache >/dev/null 2>&1 \
+        && [[ -f "$data_home/icons/hicolor/index.theme" ]]; then
+        gtk-update-icon-cache --force "$data_home/icons/hicolor" >/dev/null 2>&1 || true
+    fi
+    done_step 'Aether GTK and its saved settings were removed'
+}
+
 if [[ "$interactive" == true ]]; then
     printf '\n  %sAETHER GTK%s\n  %sInstaller%s\n\n' "$bold$accent" "$reset" "$muted" "$reset" >&2
 else
@@ -55,8 +92,16 @@ fi
 if (( EUID == 0 )); then
     fail 'Run this installer as your regular user. It does not need sudo.'
 fi
+if [[ "$version" == uninstall ]]; then
+    if (( $# != 1 )); then
+        printf 'Usage: %s uninstall\n' "$0" >&2
+        exit 2
+    fi
+    uninstall
+    exit 0
+fi
 if (( $# > 1 )) || [[ "$version" != latest && ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][[:alnum:].-]+)?$ ]]; then
-    printf 'Usage: %s [latest|vMAJOR.MINOR.PATCH]\n' "$0" >&2
+    printf 'Usage: %s [latest|vMAJOR.MINOR.PATCH|uninstall]\n' "$0" >&2
     exit 2
 fi
 if [[ "$(uname -m)" != x86_64 ]]; then

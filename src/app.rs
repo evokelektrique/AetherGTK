@@ -340,6 +340,15 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
         }
     });
     let sections = build_settings(&settings_page);
+    let version = env!("CARGO_PKG_VERSION");
+    let project_footer = Label::new(None);
+    project_footer.set_markup(&format!(
+        "Maintained by <a href=\"https://github.com/evokelektrique/AetherGTK\">evokelektrique</a> - <a href=\"https://github.com/evokelektrique/AetherGTK/releases/tag/v{version}\">v{version}</a>"
+    ));
+    project_footer.set_halign(Align::Center);
+    project_footer.add_css_class("caption");
+    project_footer.add_css_class("dim-label");
+    settings_page.append(&project_footer);
     let sections = Rc::new(sections);
     let initial_profile = load_profile();
     let profile_widgets = Rc::new(vec![

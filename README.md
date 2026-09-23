@@ -4,21 +4,39 @@
 
 # Aether GTK
 
-A desktop app for [Aether](https://github.com/CluvexStudio/Aether), maintained by [evokelektrique](https://github.com/evokelektrique). Choose a connection profile, manage your connection, and check activity from one window.
+A desktop app for [Aether](https://github.com/CluvexStudio/Aether). Choose a connection profile, manage your connection, and check activity from one window.
 
-![Aether GTK screenshot](screenshot.png)
-
+<p align="center">
+  <img src="screenshot-light.png" alt="Aether GTK light mode screenshot" width="49%">
+  <img src="screenshot-dark.png" alt="Aether GTK dark mode screenshot" width="49%">
+</p>
 ## Install
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/evokelektrique/AetherGTK/main/install.sh | bash
 ```
 
-The installer sets up Aether for your user. No `sudo` needed. To install a specific release, run:
+The installer sets up Aether for your user. No `sudo` needed.
+
+<details>
+<summary>Install a specific release</summary>
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/evokelektrique/AetherGTK/main/install.sh | bash -s -- v0.1.0
+curl -fsSL https://raw.githubusercontent.com/evokelektrique/AetherGTK/main/install.sh | bash -s -- v0.1.1
 ```
+
+</details>
+
+<details>
+<summary>Uninstall</summary>
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/evokelektrique/AetherGTK/main/install.sh | bash -s -- uninstall
+```
+
+This removes Aether GTK, its Psiphon helper, and saved app settings.
+
+</details>
 
 GTK 4 and libadwaita are required. The GNOME Quick Settings extension supports GNOME Shell 45 through 51. Other desktops can launch Aether from the app menu.
 

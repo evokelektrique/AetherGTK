@@ -2,6 +2,14 @@
 
 This project follows Semantic Versioning. User-visible changes are recorded here.
 
+## [0.1.1] - 2026-09-23
+
+### Added
+
+- Uninstall option in the per-user installer
+- Maintainer and release links in Settings
+- Light and dark mode screenshots in the README
+
 ## [0.1.0] - 2026-09-23
 
 ### Added
