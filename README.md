@@ -2,14 +2,15 @@
   <img src="data/icons/hicolor/512x512/apps/io.github.evokelektrique.AetherGtk.png" alt="Aether logo" width="112">
 </p>
 
-# Aether GTK
-
-A desktop app for [Aether](https://github.com/CluvexStudio/Aether). Choose a connection profile, manage your connection, and check activity from one window.
+<p align="center">
+  A desktop app for <a href="https://github.com/CluvexStudio/Aether">Aether</a>. Choose a connection profile, manage your connection, and check activity from one window.
+</p>
 
 <p align="center">
   <img src="screenshot-light.png" alt="Aether GTK light mode screenshot" width="49%">
   <img src="screenshot-dark.png" alt="Aether GTK dark mode screenshot" width="49%">
 </p>
+
 ## Install
 
 ```sh
