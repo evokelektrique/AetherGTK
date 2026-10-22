@@ -48,7 +48,7 @@ Install Rust 1.98 or newer, GTK 4 and libadwaita development packages, CMake, Cl
 ```sh
 git clone --recurse-submodules https://github.com/evokelektrique/AetherGTK.git
 cd AetherGTK
-cargo run
+cargo run --features aether/tor
 ```
 
 On Fedora, install the build dependencies with:
@@ -57,7 +57,9 @@ On Fedora, install the build dependencies with:
 sudo dnf install rust cargo gtk4-devel libadwaita-devel cmake clang clang-devel openssl-devel pkgconf-pkg-config
 ```
 
-On GNOME, install Quick Settings from a source checkout with `bash scripts/gnome-integration.sh install`. Release downloads include Psiphon support; source builds can install it from Settings and need Go, Git, Bash, and network access.
+On GNOME, install Quick Settings from a source checkout with `bash scripts/gnome-integration.sh install`. Release downloads include Tor's pluggable transport and Psiphon helpers. Source release packaging needs Go, Git, Bash, and network access.
+
+The Settings page can import a MASQUE identity TOML file. A private owner-readable copy is stored under `~/.config/aether-gtk/identities/` and used for future connections. Fresh Aether identities and configuration files use that directory too. Tor supports standalone Tor, Tor through MASQUE, bridge files, relay discovery, and the bundled pluggable transport.
 
 ## Changelog
 

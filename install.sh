@@ -151,8 +151,8 @@ bundle="$tmp/unpacked"
 if [[ ! -x "$bundle/aether-gtk" || ! -f "$bundle/extension.zip" ]]; then
     fail 'The release archive is missing required Aether GTK files.'
 fi
-if [[ -f "$bundle/pt/psiphon-tunnel-core" && ! -x "$bundle/pt/psiphon-tunnel-core" ]]; then
-    fail 'The bundled Psiphon client is not executable.'
+if [[ ! -x "$bundle/pt/psiphon-tunnel-core" || ! -x "$bundle/pt/lyrebird" ]]; then
+    fail 'The release archive is missing executable Tor or Psiphon transports.'
 fi
 if command -v ldd >/dev/null 2>&1; then
     missing_libraries="$(ldd "$bundle/aether-gtk" | grep 'not found' || true)"
@@ -168,12 +168,10 @@ icon_root="$data_home/icons/hicolor"
 app_bin="$bin_dir/aether-gtk"
 step 'Installing Aether GTK'
 install -D -m 0755 "$bundle/aether-gtk" "$app_bin"
-psiphon_message='Psiphon helper was not included in this release.'
-if [[ -x "$bundle/pt/psiphon-tunnel-core" ]]; then
-    install -D -m 0755 "$bundle/pt/psiphon-tunnel-core" \
-        "$data_home/aether-gtk/pt/psiphon-tunnel-core"
-    psiphon_message='Psiphon support installed.'
-fi
+install -d -m 0755 "$data_home/aether-gtk/pt"
+cp -a "$bundle/pt/." "$data_home/aether-gtk/pt/"
+chmod 0755 "$data_home/aether-gtk/pt"/*
+psiphon_message='Psiphon and Tor transport support installed.'
 for size in 64 128 256 512; do
     install -D -m 0644 \
         "$bundle/icons/hicolor/${size}x${size}/apps/$app_id.png" \

@@ -9,11 +9,11 @@ app_id="io.github.evokelektrique.AetherGtk"
 bundle_name="aether-gtk-linux-x86_64"
 
 if [[ -z "$version" || ! -x "$repo_dir/target/release/aether-gtk" ]]; then
-    printf 'Build the release binary first with cargo build --release --locked\n' >&2
+    printf 'Build the release binary first with cargo build --release --features aether/tor --locked\n' >&2
     exit 1
 fi
-if [[ ! -x "$output_dir/pt/psiphon-tunnel-core" || ! -f "$output_dir/PSIPHON-LICENSE" ]]; then
-    printf 'Build Psiphon first with bash scripts/build-psiphon-release.sh %s\n' "$output_dir" >&2
+if [[ ! -x "$output_dir/pt/psiphon-tunnel-core" || ! -x "$output_dir/pt/lyrebird" || ! -f "$output_dir/PSIPHON-LICENSE" ]]; then
+    printf 'Build Psiphon and Tor transports first with the release build scripts\n' >&2
     exit 1
 fi
 if ! command -v zip >/dev/null 2>&1; then
@@ -27,7 +27,7 @@ trap 'rm -rf -- "$stage"' EXIT
 bundle="$stage/$bundle_name"
 mkdir -p "$bundle/icons/hicolor" "$bundle/pt"
 install -m 0755 "$repo_dir/target/release/aether-gtk" "$bundle/aether-gtk"
-install -m 0755 "$output_dir/pt/psiphon-tunnel-core" "$bundle/pt/psiphon-tunnel-core"
+cp -a "$output_dir/pt/." "$bundle/pt/"
 cp -R "$repo_dir/data/icons/hicolor/64x64" "$repo_dir/data/icons/hicolor/128x128" \
     "$repo_dir/data/icons/hicolor/256x256" "$repo_dir/data/icons/hicolor/512x512" \
     "$bundle/icons/hicolor/"

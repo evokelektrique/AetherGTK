@@ -8,7 +8,9 @@ use gtk::{
     StringList, Switch,
 };
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy)]
 pub(super) struct Choice {
@@ -163,7 +165,14 @@ pub(super) fn append_field(grid: &Grid, row_index: i32, spec: Spec) -> Binding {
             entry.set_width_chars(25);
             entry.set_hexpand(true);
             entry.set_placeholder_text(Some("Optional - uses the installed client or PATH"));
-            if let Some(path) = psiphon_setup::installed_client() {
+            if spec.id == "masque_config" {
+                let path = managed_masque_identity_path();
+                if path.is_file() {
+                    entry.set_text(&path.to_string_lossy());
+                } else {
+                    entry.set_placeholder_text(Some("Choose a MASQUE identity TOML file"));
+                }
+            } else if let Some(path) = psiphon_setup::installed_client() {
                 entry.set_text(&path.to_string_lossy());
             }
             row.append(&entry);
@@ -333,7 +342,7 @@ pub(super) fn form_values(sections: &[Section]) -> FormState {
                     state.environment.push((key.into(), choice.value.into()));
                 }
             }
-            Kind::Path(flag) => {
+            Kind::Path(flag) if binding.spec.id == "psiphon_bin" => {
                 let explicit = (!value.is_empty()).then(|| PathBuf::from(&value));
                 if let Ok(Some(path)) = psiphon_setup::resolve_client_path(
                     explicit.as_deref(),
@@ -343,6 +352,21 @@ pub(super) fn form_values(sections: &[Section]) -> FormState {
                     state.args.push(path.to_string_lossy().into_owned());
                 }
             }
+            Kind::Path(flag) if binding.spec.id == "masque_config" => {
+                state.args.push(flag.into());
+                state.args.push(if value.is_empty() {
+                    managed_masque_identity_path()
+                        .to_string_lossy()
+                        .into_owned()
+                } else {
+                    value.clone()
+                });
+            }
+            Kind::Path(flag) if !value.is_empty() => {
+                state.args.push(flag.into());
+                state.args.push(value.clone());
+            }
+            Kind::Path(_) => {}
             Kind::Toggle(on, off) => {
                 if value == "true" {
                     state.args.push(on.into());
@@ -367,6 +391,29 @@ pub(super) fn form_values(sections: &[Section]) -> FormState {
         }
         if binding.spec.id == "log_level" {
             state.log_level = value;
+        }
+    }
+    if state
+        .values
+        .get("tor_mode")
+        .is_some_and(|mode| mode != "off")
+        && state.values.get("tor_pt_dir").is_none_or(String::is_empty)
+        && psiphon_setup::managed_pt_dir().is_dir()
+    {
+        state.environment.push((
+            "AETHER_TOR_PT_DIR".into(),
+            psiphon_setup::managed_pt_dir()
+                .to_string_lossy()
+                .into_owned(),
+        ));
+    }
+    for (id, path) in [
+        ("config", managed_aether_config_path()),
+        ("wg_config", managed_wireguard_config_path()),
+    ] {
+        if state.values.get(id).is_none_or(String::is_empty) {
+            state.args.push(format!("--{}", id.replace('_', "-")));
+            state.args.push(path.to_string_lossy().into_owned());
         }
     }
     state
@@ -422,6 +469,35 @@ pub(super) fn find_choice_dropdown(sections: &[Section], id: &str) -> Option<Dro
             _ => None,
         })
 }
+
+fn reprovision_path() -> PathBuf {
+    glib::user_config_dir().join("aether-gtk/reprovision")
+}
+
+fn read_reprovision(path: &std::path::Path) -> bool {
+    fs::read_to_string(path)
+        .map(|value| value.trim() != "0")
+        .unwrap_or(true)
+}
+
+fn write_reprovision(path: &std::path::Path, enabled: bool) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(path, if enabled { "1" } else { "0" });
+}
+
+pub(super) fn load_reprovision() -> bool {
+    read_reprovision(&reprovision_path())
+}
+
+pub(super) fn save_reprovision(enabled: bool) {
+    write_reprovision(&reprovision_path(), enabled);
+}
+
+pub(super) fn set_reprovision_dropdown(dropdown: &DropDown) {
+    dropdown.set_selected(if load_reprovision() { 0 } else { 1 });
+}
 pub(super) fn choose_psiphon_client(parent: &ApplicationWindow, entry: &Entry, status: &Label) {
     let dialog = gtk::FileChooserNative::new(
         Some("Choose Psiphon client"),
@@ -449,6 +525,109 @@ pub(super) fn choose_psiphon_client(parent: &ApplicationWindow, entry: &Entry, s
                     path.display()
                 )),
                 None => status.set_text("The selected file path could not be read."),
+            }
+        }
+        dialog.hide();
+    });
+    dialog.show();
+}
+
+pub(super) fn managed_masque_identity_path() -> PathBuf {
+    managed_identity_dir().join("masque.toml")
+}
+
+fn managed_identity_dir() -> PathBuf {
+    glib::user_config_dir()
+        .join("aether-gtk")
+        .join("identities")
+}
+
+fn managed_aether_config_path() -> PathBuf {
+    managed_identity_dir().join("aether.toml")
+}
+
+fn managed_wireguard_config_path() -> PathBuf {
+    managed_identity_dir().join("wireguard.toml")
+}
+
+fn import_masque_identity(source: &std::path::Path) -> Result<PathBuf, String> {
+    import_masque_identity_to(source, &managed_masque_identity_path())
+}
+
+fn import_masque_identity_to(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+) -> Result<PathBuf, String> {
+    let data =
+        fs::read(source).map_err(|error| format!("Could not read identity file: {error}"))?;
+    if data.is_empty() {
+        return Err("The selected identity file is empty".into());
+    }
+    let text = std::str::from_utf8(&data)
+        .map_err(|_| "The selected identity file is not valid UTF-8".to_owned())?;
+    toml::from_str::<toml::Value>(text)
+        .map_err(|error| format!("The selected identity file is invalid TOML: {error}"))?;
+
+    let parent = destination
+        .parent()
+        .ok_or_else(|| "Could not determine identity storage directory".to_owned())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Could not create identity directory: {error}"))?;
+
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("Could not create temporary identity name: {error}"))?
+        .as_nanos();
+    let temporary = parent.join(format!(".masque-{stamp}-{}.tmp", std::process::id()));
+    fs::write(&temporary, data)
+        .map_err(|error| format!("Could not stage identity file: {error}"))?;
+    set_private_permissions(&temporary).map_err(|error| {
+        let _ = fs::remove_file(&temporary);
+        format!("Could not protect identity file: {error}")
+    })?;
+    if let Err(error) = fs::rename(&temporary, destination) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("Could not install identity file: {error}"));
+    }
+    Ok(destination.to_path_buf())
+}
+
+fn set_private_permissions(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+    Ok(())
+}
+
+pub(super) fn choose_masque_identity(parent: &ApplicationWindow, entry: &Entry, status: &Label) {
+    let dialog = gtk::FileChooserNative::new(
+        Some("Import MASQUE identity"),
+        Some(parent),
+        gtk::FileChooserAction::Open,
+        Some("Import"),
+        Some("Cancel"),
+    );
+    let filter = gtk::FileFilter::new();
+    filter.set_name(Some("MASQUE identity TOML"));
+    filter.add_pattern("*.toml");
+    dialog.add_filter(&filter);
+    let entry = entry.clone();
+    let status = status.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == gtk::ResponseType::Accept {
+            match dialog.file().and_then(|file| file.path()) {
+                Some(path) => match import_masque_identity(&path) {
+                    Ok(destination) => {
+                        entry.set_text(&destination.to_string_lossy());
+                        status.set_text("MASQUE identity imported securely");
+                    }
+                    Err(error) => status.set_text(&error),
+                },
+                None => status.set_text("The selected identity path could not be read."),
             }
         }
         dialog.hide();
@@ -1090,11 +1269,11 @@ pub(super) fn build_settings(parent: &GtkBox) -> Vec<Section> {
                 "AETHER_TCP_CONNECT_SECS",
                 "",
             ),
-            env_text(
+            env_dropdown(
                 "reprovision",
-                "Disable automatic reprovisioning (0)",
+                "Replace refused identities automatically",
                 "AETHER_REPROVISION",
-                "",
+                REPROVISION,
             ),
         ],
     ));
@@ -1116,5 +1295,65 @@ mod tests {
         state.values.insert("tor_mode", "chain".into());
         assert!(is_visible(wireguard, &state));
         assert!(is_visible(tor_settings, &state));
+    }
+
+    #[test]
+    fn masque_identity_import_replaces_atomically_and_restricts_permissions() {
+        let root = std::env::temp_dir().join(format!(
+            "aether-gtk-identity-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let source = root.join("source.toml");
+        let destination = root.join("identities").join("masque.toml");
+        fs::write(&source, "identity = \"first\"\n").unwrap();
+        assert_eq!(
+            import_masque_identity_to(&source, &destination).unwrap(),
+            destination
+        );
+        assert_eq!(
+            fs::read_to_string(&destination).unwrap(),
+            "identity = \"first\"\n"
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            std::os::unix::fs::MetadataExt::mode(&fs::metadata(&destination).unwrap()) & 0o777,
+            0o600
+        );
+        fs::write(&source, "not = [valid").unwrap();
+        assert!(import_masque_identity_to(&source, &destination).is_err());
+        assert_eq!(
+            fs::read_to_string(&destination).unwrap(),
+            "identity = \"first\"\n"
+        );
+        fs::write(&source, "identity = \"second\"\n").unwrap();
+        import_masque_identity_to(&source, &destination).unwrap();
+        assert_eq!(
+            fs::read_to_string(&destination).unwrap(),
+            "identity = \"second\"\n"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reprovision_setting_defaults_to_enabled_and_persists_disabled() {
+        let root = std::env::temp_dir().join(format!(
+            "aether-gtk-reprovision-test-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        assert!(read_reprovision(&root));
+        write_reprovision(&root, false);
+        assert!(!read_reprovision(&root));
+        write_reprovision(&root, true);
+        assert!(read_reprovision(&root));
+        let _ = fs::remove_file(root);
     }
 }

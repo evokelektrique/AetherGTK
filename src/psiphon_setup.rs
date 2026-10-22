@@ -7,10 +7,11 @@ const CLIENT_NAME: &str = "psiphon-tunnel-core";
 const BUILD_SCRIPT: &str = include_str!("../vendor/Aether/psiphon-build.sh");
 
 pub fn managed_client_path() -> PathBuf {
-    glib::user_data_dir()
-        .join("aether-gtk")
-        .join("pt")
-        .join(format!("{CLIENT_NAME}{}", std::env::consts::EXE_SUFFIX))
+    managed_pt_dir().join(format!("{CLIENT_NAME}{}", std::env::consts::EXE_SUFFIX))
+}
+
+pub fn managed_pt_dir() -> PathBuf {
+    glib::user_data_dir().join("aether-gtk").join("pt")
 }
 
 pub fn installed_client() -> Option<PathBuf> {

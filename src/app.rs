@@ -26,6 +26,12 @@ fn theme_scheme(choice: &str) -> adw::ColorScheme {
     }
 }
 
+fn notify_connection(app: &Application, title: &str, body: &str) {
+    let notification = gio::Notification::new(title);
+    notification.set_body(Some(body));
+    app.send_notification(Some("connection-status"), &notification);
+}
+
 fn theme_path() -> PathBuf {
     glib::user_config_dir().join("aether-gtk/theme")
 }
@@ -418,6 +424,7 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
     });
     settings_scroll.set_child(Some(&settings_page));
     add_page(&stack, "settings", "Settings", &settings_scroll);
+    set_reprovision_dropdown(&find_choice_dropdown(&sections, "reprovision").unwrap());
 
     for (id, dropdown) in profile_widgets.iter() {
         let id = *id;
@@ -446,7 +453,7 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
     for section in sections.iter() {
         for binding in &section.bindings {
             match &binding.input {
-                Input::Choice(dropdown, _) => {
+                Input::Choice(dropdown, choices) => {
                     if matches!(
                         binding.spec.id,
                         "profile_mode" | "scan" | "noize" | "chain_direction" | "quick_reconnect"
@@ -455,7 +462,14 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                     }
                     let sections = sections.clone();
                     let state = settings_state.clone();
-                    dropdown.connect_selected_notify(move |_| {
+                    let choices: &'static [Choice] = choices;
+                    let reprovision = binding.spec.id == "reprovision";
+                    dropdown.connect_selected_notify(move |source| {
+                        if reprovision {
+                            if let Some(choice) = choices.get(source.selected() as usize) {
+                                save_reprovision(choice.value != "0");
+                            }
+                        }
                         *state.borrow_mut() = form_values(&sections);
                         refresh_visibility(&sections, &state.borrow());
                     });
@@ -485,10 +499,23 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                     });
                     let entry = entry.clone();
                     let window = window.clone();
-                    let setup_status = psiphon_setup.status.clone();
-                    browse.connect_clicked(move |_| {
-                        choose_psiphon_client(&window, &entry, &setup_status);
-                    });
+                    let setup_status = if binding.spec.id == "masque_config" {
+                        Label::new(Some(""))
+                    } else {
+                        psiphon_setup.status.clone()
+                    };
+                    if binding.spec.id == "masque_config" {
+                        let status = setup_status.clone();
+                        binding.row.append(&status);
+                        let entry = entry.clone();
+                        browse.connect_clicked(move |_| {
+                            choose_masque_identity(&window, &entry, &status);
+                        });
+                    } else {
+                        browse.connect_clicked(move |_| {
+                            choose_psiphon_client(&window, &entry, &setup_status);
+                        });
+                    }
                 }
                 Input::Switch(switch) => {
                     let sections = sections.clone();
@@ -682,6 +709,7 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
     let tunnel_active = Rc::new(Cell::new(false));
     let panel_status = Rc::new(RefCell::new("Disconnected".to_owned()));
     let panel_proxy_address = Rc::new(RefCell::new(String::new()));
+    let panel_error = Rc::new(RefCell::new(None::<String>));
     let active = tunnel_active.clone();
     let panel_status_click = panel_status.clone();
     connect.connect_clicked(move |button| {
@@ -857,6 +885,7 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
     let event_activity_tags = activity_tags.clone();
     let panel_status_events = panel_status.clone();
     let panel_proxy_events = panel_proxy_address.clone();
+    let panel_error_events = panel_error.clone();
     let quit_after_disconnect_events = quit_after_disconnect.clone();
     let app_events = app.clone();
     gtk::glib::timeout_add_local(Duration::from_millis(100), move || {
@@ -905,6 +934,9 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                 Ok(core::Event::Log(line)) => {
                     append_activity(&logs.buffer(), &format!("{line}\n"), &event_activity_tags);
                     let lower = line.to_lowercase();
+                    if lower.starts_with("error ") || lower.contains("[-]") {
+                        *panel_error_events.borrow_mut() = Some(line.clone());
+                    }
                     if lower.contains("socks5 server listening on")
                         || lower.contains("psiphon is ready;")
                     {
@@ -915,6 +947,12 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                 }
                 Ok(core::Event::State(core::State::Starting)) => {
                     *panel_status_events.borrow_mut() = "Connecting".into();
+                    panel_error_events.borrow_mut().take();
+                    notify_connection(
+                        &app_events,
+                        "Aether is connecting",
+                        "Finding a working route and starting the local proxy.",
+                    );
                     set_connect_visual(
                         &connect_button,
                         &connect_visuals_state,
@@ -926,6 +964,14 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                 }
                 Ok(core::Event::State(core::State::Connected)) => {
                     *panel_status_events.borrow_mut() = "Connected".into();
+                    panel_error_events.borrow_mut().take();
+                    let address = panel_proxy_events.borrow();
+                    let body = if address.is_empty() {
+                        "The local SOCKS5 proxy is ready.".to_owned()
+                    } else {
+                        format!("The local SOCKS5 proxy is ready at {address}.")
+                    };
+                    notify_connection(&app_events, "Aether is connected", &body);
                     set_connect_visual(
                         &connect_button,
                         &connect_visuals_state,
@@ -937,6 +983,11 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                 }
                 Ok(core::Event::State(core::State::Stopping)) => {
                     *panel_status_events.borrow_mut() = "Disconnecting".into();
+                    notify_connection(
+                        &app_events,
+                        "Aether is disconnecting",
+                        "Closing the tunnel and local proxy.",
+                    );
                     set_connect_visual(
                         &connect_button,
                         &connect_visuals_state,
@@ -949,6 +1000,20 @@ fn build_ui(app: &Application, present_on_start: bool) -> ApplicationWindow {
                 Ok(core::Event::State(core::State::Disconnected)) => {
                     active.set(false);
                     *panel_status_events.borrow_mut() = "Disconnected".into();
+                    let error = panel_error_events.borrow_mut().take();
+                    if let Some(error) = error {
+                        notify_connection(
+                            &app_events,
+                            "Aether connection failed",
+                            &format!("{error}. Check the activity log for details."),
+                        );
+                    } else {
+                        notify_connection(
+                            &app_events,
+                            "Aether is disconnected",
+                            "The tunnel and local proxy are stopped.",
+                        );
+                    }
                     set_connect_visual(
                         &connect_button,
                         &connect_visuals_state,

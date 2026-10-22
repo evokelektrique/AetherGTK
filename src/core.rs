@@ -163,7 +163,7 @@ pub fn spawn_worker() -> (Sender<Control>, Receiver<Event>) {
             }
             Err(error) => {
                 restore_environment(saved_environment);
-                let _ = events.send(Event::Log(error));
+                let _ = events.send(Event::Log(format!("ERROR {error}")));
                 let _ = events.send(Event::State(State::Disconnected));
                 continue;
             }
@@ -203,7 +203,7 @@ pub fn spawn_worker() -> (Sender<Control>, Receiver<Event>) {
             match poll_job(job) {
                 Ok(true) => break,
                 Err(error) => {
-                    let _ = events.send(Event::Log(error));
+                    let _ = events.send(Event::Log(format!("ERROR {error}")));
                     break;
                 }
                 Ok(false) => {}

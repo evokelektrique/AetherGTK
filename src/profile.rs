@@ -499,6 +499,18 @@ pub(super) const TOR_LOG_LEVEL: &[Choice] = &[
         value: "trace",
     },
 ];
+pub(super) const REPROVISION: &[Choice] = &[
+    Choice {
+        label: "Yes - replace refused identities automatically",
+        args: &[],
+        value: "1",
+    },
+    Choice {
+        label: "No - keep refused identities",
+        args: &[],
+        value: "0",
+    },
+];
 
 pub(super) fn profile_path() -> PathBuf {
     glib::user_config_dir().join("aether-gtk/profile")
