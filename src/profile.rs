@@ -61,7 +61,7 @@ impl ProfileMode {
         match self {
             Self::Masque | Self::TorWarp | Self::PsiphonWarp | Self::ZeroTrust => &[],
             Self::WireGuard => &["--wg"],
-            Self::Gool => &["--gool"],
+            Self::Gool => &["--gool-classic"],
             Self::MasqueInMasque => &["--mim"],
             Self::TorOnly => &["--tor-only"],
             Self::PsiphonOnly => &["--psiphon-only"],
@@ -240,7 +240,7 @@ pub(super) const MODES: &[Choice] = &[
     },
     Choice {
         label: "WARP-in-WARP - gool",
-        args: &["--gool"],
+        args: &["--gool-classic"],
         value: "gool",
     },
     Choice {
@@ -709,7 +709,7 @@ mod tests {
         );
         assert!(
             profile_args(ProfileMode::Gool, ChainDirection::WarpThroughTor)
-                .contains(&"--gool".into())
+                .contains(&"--gool-classic".into())
         );
         assert!(
             profile_args(ProfileMode::MasqueInMasque, ChainDirection::WarpThroughTor)

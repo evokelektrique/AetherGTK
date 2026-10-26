@@ -2,6 +2,13 @@
 
 This project follows Semantic Versioning. User-visible changes are recorded here.
 
+## [0.2.1] - 2026-10-26
+
+### Changed
+
+- Updated the vendored Aether core to v2.4.0
+- Kept the WARP-in-WARP profile on Aether's renamed `--gool-classic` option
+
 ## [0.2.0] - 2026-10-22
 
 ### Added

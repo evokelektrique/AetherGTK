@@ -32,7 +32,7 @@ dependencies = [
 
 [[package]]
 name = "aether"
-version = "2.3.0"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "arti-client",
@@ -40,10 +40,12 @@ dependencies = [
  "blake2",
  "boring",
  "boringtun",
+ "brotli-decompressor",
  "bytes",
  "chacha20poly1305",
  "chrono",
  "env_logger",
+ "flate2",
  "foreign-types-shared",
  "futures",
  "h2",
@@ -73,11 +75,12 @@ dependencies = [
  "tor-rtcompat",
  "tracing-subscriber",
  "x25519-dalek",
+ "zstd",
 ]
 
 [[package]]
 name = "aether-gtk"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "aether",
  "gio",
@@ -96,6 +99,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "alloc-no-stdlib"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc7bb162ec39d46ab1ca8c77bf72e890535becd1751bb45f64c597edb4c8c6b3"
+
+[[package]]
+name = "alloc-stdlib"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e76a019e91224d279006ff972f1e984179a6e9feb050adba6ce8274aef23195"
+dependencies = [
+ "alloc-no-stdlib",
 ]
 
 [[package]]
@@ -558,6 +576,16 @@ dependencies = [
  "tracing",
  "untrusted",
  "x25519-dalek",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "5.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a32acac15fe1967bc3986b2a6347dffc965602354ea6f450ad07e8bfd253583"
+dependencies = [
+ "alloc-no-stdlib",
+ "alloc-stdlib",
 ]
 
 [[package]]
@@ -1202,7 +1230,7 @@ checksum = "ba91f619216e76a5eb2515783f7ec2e271938b51aadac592f4930517f4626863"
 dependencies = [
  "heck",
  "indexmap 2.14.2",
- "itertools 0.13.0",
+ "itertools 0.15.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
